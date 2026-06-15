@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>India Places Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    #map {
+      height: 500px;
+      width: 100%;
+    }
+    #searchBox {
+      margin: 10px;
+      padding: 8px;
+      width: 250px;
+    }
+    #ads {
+      margin-top: 20px;
+      padding: 10px;
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+<body>
+  <h2>Explore Places Near You</h2>
+  <input id="searchBox" type="text" placeholder="Search (e.g. hospital, hotel, school)">
+  <button onclick="searchPlaces()">Search</button>
+  <br><br>
+  <input id="directionBox" type="text" placeholder="Enter destination for directions">
+  <button onclick="getDirections()">Get Directions</button>
+  <div id="map"></div>
+
+  <!-- Placeholder for ads or fun facts -->
+  <div id="ads">
+    <h3>Did You Know?</h3>
+    <p>India has the world’s largest postal network with over 150,000 post offices!</p>
+    <p>Travel Tip: Always carry a digital copy of your ID when exploring new cities.</p>
+    <p>Ad space – replace this with Google AdSense or affiliate links later.</p>
+  </div>
+
+  <script>
+    var map = L.map('map').setView([20.5937, 78.9629], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    var userLat, userLon;
+
+    // Get user location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(function(position) {
+        userLat = position.coords.latitude;
+        userLon = position.coords.longitude;
+        map.setView([userLat, userLon], 13);
+        L.marker([userLat, userLon]).addTo(map).bindPopup("You are here").openPopup();
+      });
+    }
+
+    // Search nearby places
+    function searchPlaces() {
+      var keyword = document.getElementById("searchBox").value;
+      if (!keyword) {
+        alert("Please enter something to search!");
+        return;
+      }
+
+      var query = `
+        [out:json];
+        (
+          node["amenity"="${keyword}"](around:3000,${userLat},${userLon});
+          node["tourism"="${keyword}"](around:3000,${userLat},${userLon});
+          node["shop"="${keyword}"](around:3000,${userLat},${userLon});
+        );
+        out;
+      `;
+
+      fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST",
+        body: query
+      })
+      .then(res => res.json())
+      .then(data => {
+        data.elements.forEach(function(el) {
+          if (el.lat && el.lon) {
+            L.marker([el.lat, el.lon]).addTo(map)
+              .bindPopup(el.tags.name || keyword);
+          }
+        });
+      });
+    }
+
+    // Get directions
+    function getDirections() {
+      var destination = document.getElementById("directionBox").value;
+      if (!destination) {
+        alert("Please enter a destination!");
+        return;
+      }
+
+      // Use Nominatim to geocode destination
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${destination}`)
+      .then(res => res.json())
+      .then(locations => {
+        if (locations.length > 0) {
+          var destLat = locations[0].lat;
+          var destLon = locations[0].lon;
+
+          L.Routing.control({
+            waypoints: [
+              L.latLng(userLat, userLon),
+              L.latLng(destLat, destLon)
+            ],
+            routeWhileDragging: true
+          }).addTo(map);
+        } else {
+          alert("Destination not found!");
+        }
+      });
+    }
+  </script>
+</body>
+</html>
